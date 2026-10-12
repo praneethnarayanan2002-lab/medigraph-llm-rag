@@ -74,6 +74,7 @@ def main() -> None:
     parser.add_argument("--model", default=None, help="main model; alone it is used for every step")
     parser.add_argument("--fast-model", default=None, help="model for rewrite + entity extraction")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--per-category", type=int, default=None, help="first N questions of each category")
     parser.add_argument("--category", action="append", help="only these categories (repeatable)")
     parser.add_argument("--name", default=None, help="run name (defaults to system + model)")
     args = parser.parse_args()
@@ -92,6 +93,10 @@ def main() -> None:
     items = [json.loads(line) for line in GOLDEN.open()]
     if args.category:
         items = [i for i in items if i["category"] in args.category]
+    if args.per_category:
+        counts: dict[str, int] = {}
+        items = [i for i in items if counts.setdefault(i["category"], 0) < args.per_category
+                 and not counts.update({i["category"]: counts[i["category"]] + 1})]
     if args.limit:
         items = items[: args.limit]
     done = {json.loads(line)["id"] for line in out.open()} if out.exists() else set()
