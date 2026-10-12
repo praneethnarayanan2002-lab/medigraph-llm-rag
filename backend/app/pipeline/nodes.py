@@ -85,14 +85,22 @@ def understand(state: GraphRAGState, config: RunnableConfig) -> dict:
     linked: list[dict[str, Any]] = []
     for m in parsed.entities[:10]:
         label = m.type if m.type in NODE_LABELS else None
-        candidates = link_entity(db, m.canonical, label)
-        if m.mention.lower() != m.canonical.lower():
-            candidates += link_entity(db, m.mention, label)
+        # The user's own wording wins when it names a node exactly: the model's "normalisation"
+        # can otherwise swap a precise term for a broader or different one
+        # ("Stanolone acetate" -> "Stanozolol", "Duane syndrome type 1" -> "Duane retraction syndrome").
+        own = link_entity(db, m.mention, label)
+        if own and own[0].method == "exact":
+            candidates = own
+        else:
+            candidates = own
+            if m.mention.lower() != m.canonical.lower():
+                candidates = own + link_entity(db, m.canonical, label)
         if not candidates and label:  # the model may have guessed the wrong type
             candidates = link_entity(db, m.canonical, None)
         if not candidates:
             continue
-        candidates.sort(key=lambda c: c.score, reverse=True)
+        # Exact matches first, then by score.
+        candidates.sort(key=lambda c: (c.method == "exact", c.score), reverse=True)
         best = candidates[0]
         alternatives = [c.name for c in candidates[1:] if c.name != best.name][:2]
         linked.append({**best.as_dict(), "mention": m.mention, "alternatives": alternatives})

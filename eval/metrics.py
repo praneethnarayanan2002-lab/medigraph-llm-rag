@@ -2,8 +2,11 @@
 
 Metrics (all computed against gold answers derived from the graph, no LLM judge):
   answer_recall      share of gold entities the answer names
-  unsupported_rate   share of entities named in the answer that are NOT in the gold set
-                     (hallucinations, or true-but-ungrounded claims) - lower is better
+  unsupported_rate   share of entities named in the answer that appear neither in the gold set,
+                     nor in the retrieved rows, nor in the question: claims with nothing behind
+                     them (for closed-book runs there is no retrieval, so: not in gold) - lower is better
+  off_gold_rate      share of named entities outside the gold set (stricter; includes grounded
+                     extras such as off-label uses or symptoms quoted from description text)
   exec_accuracy      graphrag only: the query's result set equals the gold set exactly
   retrieval_recall   graphrag only: share of gold entities present in the retrieved rows
   valid_first_try    graphrag only: generated Cypher passed every check on the first attempt
@@ -45,14 +48,15 @@ def names_by_label(label: str) -> frozenset[str]:
     return frozenset(r["name"] for r in rows if r["name"])
 
 
-def mentioned(answer: str, label: str) -> set[str]:
+def mentioned(answer: str, label: str, strict_case: bool = False) -> set[str]:
     """Names of `label` nodes that appear in the answer text."""
     if not answer:
         return set()
     if label == "Gene":  # symbols: exact, case-sensitive token match
         tokens = set(re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", answer))
         return {n for n in names_by_label(label) if n in tokens and len(n) >= 2}
-    text = " " + re.sub(r"\s+", " ", answer.lower()) + " "
+    original = " " + re.sub(r"\s+", " ", answer) + " "
+    text = original.lower()
     found = set()
     # Longest names first; each match is blanked out so "Estradiol" only counts if it also
     # appears on its own, not as part of an already-matched "Estradiol acetate".
@@ -63,7 +67,10 @@ def mentioned(answer: str, label: str) -> set[str]:
         idx = text.find(low)
         while idx != -1:
             end = idx + len(low)
-            if not text[idx - 1].isalnum() and (end >= len(text) or not text[end].isalnum()):
+            bounded = not text[idx - 1].isalnum() and (end >= len(text) or not text[end].isalnum())
+            # Single-word names ("Severe", "Pain") must match case-sensitively, so ordinary
+            # lower-case English in a sentence is not counted as naming a phenotype.
+            if bounded and (not strict_case or " " in n or original[idx:end] == n):
                 found.add(n)
                 text = text[:idx] + "#" * len(low) + text[end:]
             idx = text.find(low, idx + 1)
@@ -109,9 +116,15 @@ def score(item: dict, rec: dict) -> dict:
     if item["kind"] == "list":
         gold = set(item["gold"])
         label = item["answer_label"]
-        named = mentioned(answer, label)
-        out["answer_recall"] = len(gold & named) / len(gold)
-        out["unsupported_rate"] = len(named - gold) / len(named) if named else 0.0
+        found = mentioned(answer, label)
+        # Extra claims use strict matching so plain words ("severe", "pain") aren't counted.
+        named = (found & gold) | (mentioned(answer, label, strict_case=True) - gold)
+        evidence = " ".join(strings(rec.get("rows", [])) + [item["question"]]
+                            + [t["content"] for t in item.get("history") or []]).lower()
+        ungrounded = {n for n in named - gold if n.lower() not in evidence}
+        out["answer_recall"] = len(gold & found) / len(gold)
+        out["unsupported_rate"] = len(ungrounded) / len(named) if named else 0.0
+        out["off_gold_rate"] = len(named - gold) / len(named) if named else 0.0
         out["named"] = len(named)
         if rec.get("system") == "graphrag":
             retrieved = {s for s in strings(rec.get("rows", [])) if s in names_by_label(label)}
@@ -144,6 +157,7 @@ def summarize(scores: list[dict]) -> dict:
         "n": len(scores),
         "answer_recall": mean(pick("answer_recall")),
         "unsupported_rate": mean(pick("unsupported_rate")),
+        "off_gold_rate": mean(pick("off_gold_rate")),
         "exec_accuracy": mean(pick("exec_accuracy")),
         "retrieval_recall": mean(pick("retrieval_recall")),
         "valid_first_try": mean(pick("valid_first_try")),
@@ -176,12 +190,13 @@ def main() -> None:
              f"Golden set: {len(golden)} questions (`eval/golden_set.jsonl`). "
              "Gold answers come from reference Cypher queries over PrimeKG.", "",
              "## Overall", "",
-             "| run | n | answer recall | unsupported claims ↓ | exec accuracy | retrieval recall | "
+             "| run | n | answer recall | unsupported claims ↓ | off-gold ↓ | exec accuracy | retrieval recall | "
              "valid 1st try | count/yes-no | refusal correct | false refusal ↓ | fallback | p50 s | p95 s |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, s in summaries.items():
         lines.append(
             f"| {name} | {s['n']} | {fmt(s['answer_recall'])} | {fmt(s['unsupported_rate'])} | "
+            f"{fmt(s['off_gold_rate'])} | "
             f"{fmt(s['exec_accuracy'])} | {fmt(s['retrieval_recall'])} | {fmt(s['valid_first_try'])} | "
             f"{fmt(s['value_correct'])} | {fmt(s['refusal_correct'])} | {fmt(s['false_refusal'])} | "
             f"{fmt(s['fallback_rate'])} | {fmt(s['latency_p50'], False)} | {fmt(s['latency_p95'], False)} |"

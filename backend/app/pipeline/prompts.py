@@ -29,7 +29,10 @@ For the question below:
    Only list specific named things. Skip generic words such as "drugs", "medications",
    "symptoms", "side effects", "genes" or "diseases".
 2. Decide `in_scope`: true if the question could be answered from the graph described above.
-   Asking for personal medical advice ("should I take...", "what dose...") is out of scope.
+   General questions about a condition or drug are IN scope, including which drugs are
+   contraindicated, should be avoided, or are used in patients with a disease.
+   Only questions about the asker's own care ("should I take...", "what dose should I...",
+   "can you diagnose my...") or data the graph lacks are out of scope.
 3. If out of scope, give a one-sentence `reason`.
 
 Question: {question}"""
@@ -79,6 +82,8 @@ Rules:
 - Name the specific entities (drugs, genes, diseases...) from the data. Keep their spelling.
 - If the result was truncated, say the list is partial.
 - Be concise: a short direct answer, then a bullet list if there are several items.
+- When the data is a list of items, include every item from the retrieved data; do not
+  shorten the list or pick examples.
 - Do not give personal medical advice or dosing.
 {fallback_note}
 Question: {question}
