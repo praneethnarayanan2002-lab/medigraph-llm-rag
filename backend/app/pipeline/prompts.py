@@ -30,7 +30,8 @@ For the question below:
    "symptoms", "side effects", "genes" or "diseases".
 2. Decide `in_scope`: true if the question could be answered from the graph described above.
    General questions about a condition or drug are IN scope, including which drugs are
-   contraindicated, should be avoided, or are used in patients with a disease.
+   contraindicated, should be avoided, or are used in patients with a disease, and how many
+   drugs / genes / symptoms are linked to something (counting graph entries is in scope).
    Only questions about the asker's own care ("should I take...", "what dose should I...",
    "can you diagnose my...") or data the graph lacks are out of scope.
 3. If out of scope, give a one-sentence `reason`.

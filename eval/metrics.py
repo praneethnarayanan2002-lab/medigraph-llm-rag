@@ -99,9 +99,11 @@ def predicted_bool(answer: str) -> bool | None:
 def score(item: dict, rec: dict) -> dict:
     answer = rec.get("answer") or ""
     out: dict = {"category": item["category"], "latency": rec.get("latency_s")}
+    # A refusal is the pipeline declining, or (for list questions, where a closed-book model can
+    # also decline in prose) a refusal phrase with no entities named at all.
     refused = rec.get("status") in {"out_of_scope", "no_answer"} or (
-        bool(REFUSAL.search(answer[:300])) and item["kind"] != "refuse"
-        and not mentioned(answer, item.get("answer_label", "Drug"))
+        item["kind"] == "list" and bool(REFUSAL.search(answer[:300]))
+        and not mentioned(answer, item["answer_label"])
     )
     if item["kind"] == "refuse":
         out["refusal_correct"] = rec.get("status") in {"out_of_scope", "no_answer"} or bool(REFUSAL.search(answer))
