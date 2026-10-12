@@ -1,0 +1,36 @@
+{
+  "overall": {
+    "graphrag__qwen3.5-9b": {
+      "n": 12,
+      "answer_recall": 1.0,
+      "unsupported_rate": 0.013888888888888888,
+      "exec_accuracy": 0.9166666666666666,
+      "retrieval_recall": 1.0,
+      "valid_first_try": 0.9166666666666666,
+      "value_correct": null,
+      "refusal_correct": null,
+      "false_refusal": 0.0,
+      "fallback_rate": 0.0,
+      "latency_p50": 45.19,
+      "latency_p95": 54.38
+    }
+  },
+  "by_category": {
+    "graphrag__qwen3.5-9b": {
+      "drugs_for_disease": {
+        "n": 12,
+        "answer_recall": 1.0,
+        "unsupported_rate": 0.013888888888888888,
+        "exec_accuracy": 0.9166666666666666,
+        "retrieval_recall": 1.0,
+        "valid_first_try": 0.9166666666666666,
+        "value_correct": null,
+        "refusal_correct": null,
+        "false_refusal": 0.0,
+        "fallback_rate": 0.0,
+        "latency_p50": 45.19,
+        "latency_p95": 54.38
+      }
+    }
+  }
+}

@@ -8,5 +8,5 @@ data/raw/
 data/import/
 node_modules/
 frontend/dist/
-eval/reports/*.jsonl
 .DS_Store
+eval/*.log

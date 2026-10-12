@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     llm_provider: Literal["ollama", "openai"] = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.5:9b"
+    # Optional smaller model for the easy steps (rewrite, entity extraction). Empty = use ollama_model.
+    # Tested qwen3.5:2b on a 16 GB Mac: slower overall (two models in memory -> more swapping).
+    ollama_fast_model: str = ""
     embed_model: str = "nomic-embed-text"
     # Entity linking embedder: "sapbert" (biomedical, Hugging Face) or "nomic" (general purpose)
     entity_embedder: Literal["sapbert", "nomic"] = "sapbert"

@@ -54,19 +54,20 @@ def mentioned(answer: str, label: str) -> set[str]:
         return {n for n in names_by_label(label) if n in tokens and len(n) >= 2}
     text = " " + re.sub(r"\s+", " ", answer.lower()) + " "
     found = set()
-    for n in names_by_label(label):
+    # Longest names first; each match is blanked out so "Estradiol" only counts if it also
+    # appears on its own, not as part of an already-matched "Estradiol acetate".
+    for n in sorted(names_by_label(label), key=len, reverse=True):
         if len(n) < 4:
             continue
         low = n.lower()
         idx = text.find(low)
         while idx != -1:
-            before, after = text[idx - 1], text[idx + len(low)] if idx + len(low) < len(text) else " "
-            if not before.isalnum() and not after.isalnum():
+            end = idx + len(low)
+            if not text[idx - 1].isalnum() and (end >= len(text) or not text[end].isalnum()):
                 found.add(n)
-                break
+                text = text[:idx] + "#" * len(low) + text[end:]
             idx = text.find(low, idx + 1)
-    # Drop names that are only substrings of another found name ("Estradiol" in "Estradiol acetate").
-    return {n for n in found if not any(n != m and n.lower() in m.lower() for m in found)}
+    return found
 
 
 def strings(value) -> list[str]:

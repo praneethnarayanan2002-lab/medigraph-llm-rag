@@ -78,6 +78,10 @@ def run(
     history: list[Turn] | None = None,
     provider: str | None = None,
     model: str | None = None,
+    fast_model: str | None = None,
 ) -> dict[str, Any]:
-    config = {"configurable": {"provider": provider, "model": model}, "recursion_limit": 30}
+    """`model` overrides the main model; `fast_model` the easy-step model. Overriding only `model`
+    uses it for every step (so a baseline run tests one model end to end)."""
+    conf = {"provider": provider, "model": model, "fast_model": fast_model}
+    config = {"configurable": conf, "recursion_limit": 30}
     return build_workflow().invoke({"question": question, "history": history or []}, config)

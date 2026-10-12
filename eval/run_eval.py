@@ -38,8 +38,8 @@ names. If you don't know, say so.
 {history}Question: {question}"""
 
 
-def run_graphrag(item: dict, provider: str | None, model: str | None) -> dict:
-    state = run(item["question"], item.get("history"), provider=provider, model=model)
+def run_graphrag(item: dict, provider: str | None, model: str | None, fast_model: str | None = None) -> dict:
+    state = run(item["question"], item.get("history"), provider=provider, model=model, fast_model=fast_model)
     log = state.get("attempt_log", [])
     return {
         "answer": state.get("answer", ""),
@@ -57,7 +57,7 @@ def run_graphrag(item: dict, provider: str | None, model: str | None) -> dict:
     }
 
 
-def run_closed_book(item: dict, provider: str | None, model: str | None) -> dict:
+def run_closed_book(item: dict, provider: str | None, model: str | None, fast_model: str | None = None) -> dict:
     history = "".join(f"{t['role']}: {t['content']}\n" for t in item.get("history") or [])
     if history:
         history = "Conversation so far:\n" + history + "\n"
@@ -71,7 +71,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--system", choices=["graphrag", "closed_book"], default="graphrag")
     parser.add_argument("--provider", default=None)
-    parser.add_argument("--model", default=None)
+    parser.add_argument("--model", default=None, help="main model; alone it is used for every step")
+    parser.add_argument("--fast-model", default=None, help="model for rewrite + entity extraction")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--category", action="append", help="only these categories (repeatable)")
     parser.add_argument("--name", default=None, help="run name (defaults to system + model)")
@@ -80,7 +81,11 @@ def main() -> None:
     s = get_settings()
     provider = args.provider or s.llm_provider
     model = args.model or (s.openai_model if provider == "openai" else s.ollama_model)
-    name = args.name or f"{args.system}__{model.replace(':', '-').replace('/', '-')}"
+    fast_model = args.fast_model
+    if fast_model is None and args.model is None and provider == "ollama" and args.system == "graphrag":
+        fast_model = s.ollama_fast_model or None
+    tag = model + (f"+{fast_model}" if fast_model and fast_model != model else "")
+    name = args.name or f"{args.system}__{tag.replace(':', '-').replace('/', '-')}"
     out = RUNS / f"{name}.jsonl"
     RUNS.mkdir(parents=True, exist_ok=True)
 
@@ -98,12 +103,12 @@ def main() -> None:
         for n, item in enumerate(todo, 1):
             start = time.perf_counter()
             try:
-                result = runner(item, provider, model)
+                result = runner(item, provider, model if args.model or args.provider else None, fast_model)
                 error = None
             except Exception as exc:  # noqa: BLE001 - record and continue
                 result, error = {"answer": "", "status": "error"}, f"{exc}\n{traceback.format_exc(limit=3)}"
             latency = time.perf_counter() - start
-            record = {"id": item["id"], "system": args.system, "model": model, "latency_s": round(latency, 2),
+            record = {"id": item["id"], "system": args.system, "model": tag, "latency_s": round(latency, 2),
                       "error": error, **result}
             f.write(json.dumps(record, default=str) + "\n")
             f.flush()

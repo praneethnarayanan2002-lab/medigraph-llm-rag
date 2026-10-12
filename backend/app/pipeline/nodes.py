@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
 from app.graph.db import get_db
 from app.graph.linker import link_entity
 from app.graph.schema import NODE_LABELS, schema_prompt
@@ -23,9 +24,16 @@ from app.pipeline.state import GraphRAGState
 MAX_TEXT_CHARS = 500
 
 
-def _llm(config: RunnableConfig | None):
+def _llm(config: RunnableConfig | None, fast: bool = False):
+    """Main model for Cypher + answers; with fast=True, the small routing model for easy steps."""
     conf = (config or {}).get("configurable", {})
-    return get_chat_model(conf.get("provider"), conf.get("model"))
+    provider, model = conf.get("provider"), conf.get("model")
+    if fast:
+        fast_model = conf.get("fast_model")
+        if fast_model is None and model is None and (provider or get_settings().llm_provider) == "ollama":
+            fast_model = get_settings().ollama_fast_model or None
+        model = fast_model or model
+    return get_chat_model(provider, model)
 
 
 def _trace(step: str, start: float, **detail: Any) -> list[dict[str, Any]]:
@@ -43,7 +51,8 @@ def contextualize(state: GraphRAGState, config: RunnableConfig) -> dict:
         return {"standalone_question": q, "trace": _trace("contextualize", start, rewritten=False)}
 
     convo = "\n".join(f"{t['role']}: {t['content'][:800]}" for t in history[-6:])
-    reply = _llm(config).invoke(prompts.CONTEXTUALIZE.format(history=convo, question=state["question"]))
+    prompt = prompts.CONTEXTUALIZE.format(history=convo, question=state["question"])
+    reply = _llm(config, fast=True).invoke(prompt)
     q = reply.content.strip().strip('"') or state["question"]
     return {"standalone_question": q, "trace": _trace("contextualize", start, rewritten=True, question=q)}
 
@@ -66,7 +75,7 @@ class Extraction(BaseModel):
 def understand(state: GraphRAGState, config: RunnableConfig) -> dict:
     start = time.perf_counter()
     question = state["standalone_question"]
-    extractor = _llm(config).with_structured_output(Extraction)
+    extractor = _llm(config, fast=True).with_structured_output(Extraction)
     try:
         parsed: Extraction = extractor.invoke(prompts.EXTRACT.format(question=question))
     except Exception:  # malformed JSON from the model: carry on without entity hints
