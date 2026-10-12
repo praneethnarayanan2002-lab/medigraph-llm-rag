@@ -34,6 +34,8 @@ For the question below:
    drugs / genes / symptoms are linked to something (counting graph entries is in scope).
    Only questions about the asker's own care ("should I take...", "what dose should I...",
    "can you diagnose my...") or data the graph lacks are out of scope.
+   Do not judge whether an entity is real or is "really" a drug: unfamiliar names are looked up
+   in the database, which decides. Never mark a question out of scope for that reason.
 3. If out of scope, give a one-sentence `reason`.
 
 Question: {question}"""

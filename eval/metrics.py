@@ -46,7 +46,7 @@ REFUSAL = re.compile(
 
 @lru_cache
 def names_by_label(label: str) -> frozenset[str]:
-    rows = get_db().read(f"MATCH (n:{label}) RETURN n.name AS name", max_rows=200_000).rows
+    rows = get_db().read(f"MATCH (n:{label}) RETURN n.name AS name", max_rows=200_000, timeout=180).rows
     return frozenset(r["name"] for r in rows if r["name"])
 
 
