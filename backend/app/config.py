@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.5:9b"
     embed_model: str = "nomic-embed-text"
+    # Entity linking embedder: "sapbert" (biomedical, Hugging Face) or "nomic" (general purpose)
+    entity_embedder: Literal["sapbert", "nomic"] = "sapbert"
 
     openai_api_key: str = ""
     openai_model: str = ""

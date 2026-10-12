@@ -11,9 +11,9 @@ import time
 from tqdm import tqdm
 
 from app.graph.db import get_db
-from app.graph.linker import FULLTEXT_INDEX, VECTOR_INDEX_PREFIX
+from app.graph.linker import FULLTEXT_INDEX, VECTOR_PROPERTY, vector_index_name
 from app.graph.schema import EMBEDDED_LABELS, LINKABLE_LABELS, NODE_LABELS
-from app.llm import get_embeddings
+from app.llm import get_entity_embeddings
 
 BATCH = 64
 
@@ -43,29 +43,31 @@ def create_indexes() -> None:
     print("range + full-text indexes ready")
 
 
-def embed_names(dimensions: int) -> None:
+def embed_names(kind: str) -> None:
     db = get_db()
-    emb = get_embeddings()
-    for label in EMBEDDED_LABELS:
+    emb = get_entity_embeddings(kind)
+    prop = VECTOR_PROPERTY[kind]
+    dimensions = len(emb.embed_query("test"))
+    for label in EMBEDDED_LABELS[kind]:
         todo = db.read(
-            f"MATCH (n:{label}) WHERE n.embedding IS NULL RETURN n.node_index AS idx, n.name AS name",
+            f"MATCH (n:{label}) WHERE n.{prop} IS NULL RETURN n.node_index AS idx, n.name AS name",
             max_rows=10**6,
         ).rows
-        for i in tqdm(range(0, len(todo), BATCH), desc=f"embedding {label}", unit="batch"):
+        for i in tqdm(range(0, len(todo), BATCH), desc=f"{kind} {label}", unit="batch"):
             chunk = todo[i : i + BATCH]
             vectors = _embed_with_retry(emb, [r["name"] for r in chunk])
             db.write(
                 f"""
                 UNWIND $rows AS row
                 MATCH (n:{label} {{node_index: row.idx}})
-                CALL db.create.setNodeVectorProperty(n, 'embedding', row.vec)
+                CALL db.create.setNodeVectorProperty(n, '{prop}', row.vec)
                 """,
                 {"rows": [{"idx": r["idx"], "vec": v} for r, v in zip(chunk, vectors, strict=False)]},
             )
         db.write(
             f"""
-            CREATE VECTOR INDEX {VECTOR_INDEX_PREFIX}{label.lower()} IF NOT EXISTS
-            FOR (n:{label}) ON (n.embedding)
+            CREATE VECTOR INDEX {vector_index_name(label, kind)} IF NOT EXISTS
+            FOR (n:{label}) ON (n.{prop})
             OPTIONS {{indexConfig: {{`vector.dimensions`: {dimensions},
                                     `vector.similarity_function`: 'cosine'}}}}
             """
@@ -77,13 +79,14 @@ def embed_names(dimensions: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-embeddings", action="store_true")
+    parser.add_argument("--embedder", choices=["sapbert", "nomic", "both"], default="sapbert")
     args = parser.parse_args()
 
     start = time.time()
     create_indexes()
     if not args.skip_embeddings:
-        dims = len(get_embeddings().embed_query("test"))
-        embed_names(dims)
+        for kind in ["sapbert", "nomic"] if args.embedder == "both" else [args.embedder]:
+            embed_names(kind)
     print(f"done in {time.time() - start:.0f}s")
 
 

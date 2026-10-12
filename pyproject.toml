@@ -15,7 +15,9 @@ dependencies = [
     "pandas>=2.2",
     "pydantic-settings>=2.6",
     "sse-starlette>=2.1",
+    "torch>=2.14.1",
     "tqdm>=4.66",
+    "transformers>=5.19.0",
     "uvicorn[standard]>=0.32",
 ]
 
@@ -38,3 +40,4 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "backend/app/pipeline/examples.py" = ["E501"]
+"eval/*.py" = ["E501"]

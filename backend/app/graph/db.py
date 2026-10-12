@@ -11,7 +11,7 @@ from neo4j.graph import Node, Path, Relationship
 
 from app.config import get_settings
 
-HIDDEN_PROPS = {"embedding"}
+HIDDEN_PROPS = {"embedding", "sapbert"}
 
 
 @dataclass

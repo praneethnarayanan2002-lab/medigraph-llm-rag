@@ -51,6 +51,51 @@ class NomicEmbeddings(Embeddings):
         return self._inner.embed_query(self.PREFIX + text)
 
 
+class SapBERTEmbeddings(Embeddings):
+    """SapBERT (Liu et al., NAACL 2021): PubMedBERT fine-tuned with self-alignment pretraining on
+    UMLS synonyms, so "heart attack" and "myocardial infarction" land next to each other. It is
+    built for exactly this job - biomedical entity linking - which general embedders do poorly.
+    Uses the [CLS] vector, as in the model card. Runs on Apple-silicon GPU (MPS) when available."""
+
+    MODEL = "cambridgeltl/SapBERT-from-PubMedBERT-fulltext"
+
+    def __init__(self, batch_size: int = 128) -> None:
+        import torch
+        from transformers import AutoModel, AutoTokenizer
+
+        self._torch = torch
+        self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+        self.tokenizer = AutoTokenizer.from_pretrained(self.MODEL)
+        self.model = AutoModel.from_pretrained(self.MODEL).to(self.device).eval()
+        self.batch_size = batch_size
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        out: list[list[float]] = []
+        with self._torch.inference_mode():
+            for i in range(0, len(texts), self.batch_size):
+                batch = self.tokenizer(
+                    texts[i : i + self.batch_size],
+                    padding=True,
+                    truncation=True,
+                    max_length=32,
+                    return_tensors="pt",
+                ).to(self.device)
+                cls = self.model(**batch).last_hidden_state[:, 0, :]
+                out += cls.float().cpu().tolist()
+        return out
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed_documents([text])[0]
+
+
 @lru_cache
 def get_embeddings() -> Embeddings:
+    """Sentence embeddings (few-shot example retrieval)."""
     return NomicEmbeddings()
+
+
+@lru_cache
+def get_entity_embeddings(kind: str | None = None) -> Embeddings:
+    """Entity-name embeddings for linking: SapBERT by default, nomic kept for comparison."""
+    kind = kind or get_settings().entity_embedder
+    return SapBERTEmbeddings() if kind == "sapbert" else NomicEmbeddings()

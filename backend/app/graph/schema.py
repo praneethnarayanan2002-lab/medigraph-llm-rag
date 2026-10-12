@@ -63,7 +63,10 @@ ALL_PROPERTIES: set[str] = set(COMMON_PROPERTIES) | {
 # Labels whose names are worth embedding for entity linking (Gene symbols and GO terms are not
 # phrased the way users talk, and full-text search handles them fine).
 LINKABLE_LABELS = ["Disease", "Drug", "Phenotype", "Gene", "Exposure", "Anatomy", "Pathway"]
-EMBEDDED_LABELS = ["Disease", "Drug", "Phenotype", "Exposure", "Anatomy"]
+EMBEDDED_LABELS = {
+    "nomic": ["Disease", "Drug", "Phenotype", "Exposure", "Anatomy"],
+    "sapbert": ["Disease", "Drug", "Phenotype", "Exposure", "Anatomy", "Gene", "Pathway"],
+}
 
 
 def schema_prompt() -> str:

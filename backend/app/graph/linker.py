@@ -16,11 +16,18 @@ import numpy as np
 from app.config import get_settings
 from app.graph.db import GraphDB
 from app.graph.schema import EMBEDDED_LABELS, LINKABLE_LABELS
-from app.llm import get_embeddings
+from app.llm import get_entity_embeddings
 
 FULLTEXT_INDEX = "entity_names"
-VECTOR_INDEX_PREFIX = "embedding_"
-MIN_SCORE = 0.75
+# Vector property / index names per entity embedder.
+VECTOR_PROPERTY = {"nomic": "embedding", "sapbert": "sapbert"}
+
+
+def vector_index_name(label: str, kind: str) -> str:
+    return f"{VECTOR_PROPERTY[kind]}_{label.lower()}"
+
+# Blended-score floor per embedder (cosine scales differ: SapBERT spreads scores much wider).
+MIN_SCORE = {"nomic": 0.75, "sapbert": 0.55}
 LUCENE_SPECIAL = re.compile(r'([+\-&|!(){}\[\]^"~*?:\\/])')
 
 
@@ -62,7 +69,9 @@ def fulltext_candidates(db: GraphDB, mention: str, label: str | None, k: int) ->
 def vector_candidates(
     db: GraphDB, mention: str, vector: list[float], label: str | None, k: int
 ) -> list[LinkedEntity]:
-    labels = [label] if label in EMBEDDED_LABELS else ([] if label else EMBEDDED_LABELS)
+    kind = get_settings().entity_embedder
+    available = EMBEDDED_LABELS[kind]
+    labels = [label] if label in available else ([] if label else available)
     out: list[LinkedEntity] = []
     for lab in labels:
         try:
@@ -71,7 +80,7 @@ def vector_candidates(
                 CALL db.index.vector.queryNodes($index, $k, $vector) YIELD node, score
                 RETURN node.name AS name, node.node_index AS idx, score
                 """,
-                {"index": VECTOR_INDEX_PREFIX + lab.lower(), "k": k, "vector": vector},
+                {"index": vector_index_name(lab, kind), "k": k, "vector": vector},
             ).rows
         except neo4j.exceptions.ClientError:  # index not built yet: degrade to full-text only
             continue
@@ -111,7 +120,7 @@ def link_entity(db: GraphDB, mention: str, label: str | None = None) -> list[Lin
     if exact:
         return [LinkedEntity(mention, r["label"], r["name"], r["idx"], 1.0, "exact") for r in exact]
 
-    emb = get_embeddings()
+    emb = get_entity_embeddings()
     vector = emb.embed_query(mention)
     candidates: dict[int, LinkedEntity] = {}
     for c in fulltext_candidates(db, mention, label, k) + vector_candidates(db, mention, vector, label, k):
@@ -129,6 +138,7 @@ def link_entity(db: GraphDB, mention: str, label: str | None = None) -> list[Lin
         semantic = _cosine(q, np.array(v))
         lexical = SequenceMatcher(None, mention.lower(), c.name.lower()).ratio()
         c.score = round(0.85 * semantic + 0.15 * lexical, 3)
-    ranked = [c for c in ranked if c.score >= MIN_SCORE]
+    floor = MIN_SCORE[get_settings().entity_embedder]
+    ranked = [c for c in ranked if c.score >= floor]
     ranked.sort(key=lambda e: e.score, reverse=True)
     return ranked[:k]
