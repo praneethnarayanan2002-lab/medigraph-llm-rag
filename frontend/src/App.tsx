@@ -48,7 +48,9 @@ export default function App() {
       .then(setExamples)
       .catch(() => setExamples([]))
   }, [])
-  useEffect(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }), [messages])
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const ask = async (question: string) => {
     if (!question.trim() || busy) return
