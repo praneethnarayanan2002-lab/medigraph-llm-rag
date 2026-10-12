@@ -1,7 +1,8 @@
 """Score every run in eval/runs/ against the golden set and write eval/reports/results.md.
 
 Metrics (all computed against gold answers derived from the graph, no LLM judge):
-  answer_recall      share of gold entities the answer names
+  answer_recall      share of gold entities the answer names, @50: the pipeline returns at most
+                     50 rows by design, so the denominator is min(|gold|, 50) for every system
   unsupported_rate   share of entities named in the answer that appear neither in the gold set,
                      nor in the retrieved rows, nor in the question: claims with nothing behind
                      them (for closed-book runs there is no retrieval, so: not in gold) - lower is better
@@ -33,6 +34,7 @@ from app.graph.db import get_db  # noqa: E402
 GOLDEN = ROOT / "eval" / "golden_set.jsonl"
 RUNS = ROOT / "eval" / "runs"
 REPORT = ROOT / "eval" / "reports" / "results.md"
+ROW_CAP = 50  # = Settings.max_result_rows
 
 REFUSAL = re.compile(
     r"couldn.t find|could not find|not (?:found|present|available|contained|included)|"
@@ -124,14 +126,15 @@ def score(item: dict, rec: dict) -> dict:
         evidence = " ".join(strings(rec.get("rows", [])) + [item["question"]]
                             + [t["content"] for t in item.get("history") or []]).lower()
         ungrounded = {n for n in named - gold if n.lower() not in evidence}
-        out["answer_recall"] = len(gold & found) / len(gold)
+        out["answer_recall"] = min(1.0, len(gold & found) / min(len(gold), ROW_CAP))
         out["unsupported_rate"] = len(ungrounded) / len(named) if named else 0.0
         out["off_gold_rate"] = len(named - gold) / len(named) if named else 0.0
         out["named"] = len(named)
         if rec.get("system") == "graphrag":
             retrieved = {s for s in strings(rec.get("rows", [])) if s in names_by_label(label)}
-            out["retrieval_recall"] = len(gold & retrieved) / len(gold)
-            out["exec_accuracy"] = (retrieved == gold) and not rec.get("used_fallback")
+            out["retrieval_recall"] = min(1.0, len(gold & retrieved) / min(len(gold), ROW_CAP))
+            exact = retrieved == gold or (len(gold) > ROW_CAP and len(retrieved) == ROW_CAP and retrieved <= gold)
+            out["exec_accuracy"] = exact and not rec.get("used_fallback")
     elif item["kind"] == "count":
         out["value_correct"] = str(item["gold"]) in re.findall(r"\d+", answer)
     elif item["kind"] == "boolean":
