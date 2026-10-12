@@ -1,0 +1,40 @@
+[project]
+name = "medigraph"
+version = "0.1.0"
+description = "Graph RAG for medical questions: Qwen3.5 + Neo4j (PrimeKG) + LangGraph"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "fastapi>=0.115",
+    "httpx>=0.28",
+    "langchain-core>=1.0",
+    "langchain-ollama>=1.0",
+    "langchain-openai>=1.0",
+    "langgraph>=1.0",
+    "neo4j>=5.26",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "pydantic-settings>=2.6",
+    "sse-starlette>=2.1",
+    "tqdm>=4.66",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+testpaths = ["backend/tests"]
+
+[tool.ruff]
+line-length = 110
+src = ["backend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/app/pipeline/examples.py" = ["E501"]

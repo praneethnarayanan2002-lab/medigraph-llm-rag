@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+data/raw/
+data/import/
+node_modules/
+frontend/dist/
+eval/reports/*.jsonl
+.DS_Store
