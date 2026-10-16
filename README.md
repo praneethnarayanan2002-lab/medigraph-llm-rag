@@ -191,6 +191,11 @@ uv run python eval/metrics.py
 
 Copy `.env.example` to `.env` to change models or add an OpenAI key.
 
+## More docs
+
+- [`docs/decision.md`](docs/decision.md): every design decision, the alternatives I considered and the trade-offs
+- [`docs/flow.md`](docs/flow.md): how the code runs, entry points, execution order and call chains between files
+
 ## Layout
 
 ```
@@ -200,6 +205,7 @@ backend/app/api/        FastAPI app
 backend/tests/          tests for the query checks
 data/scripts/           PrimeKG download and conversion
 eval/                   test set builder, runner, metrics, entity-linking benchmark, results
+docs/                   design decisions, code flow, screenshots
 frontend/               React UI
 ```
 
