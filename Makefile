@@ -20,7 +20,7 @@ up:                 ## Start Neo4j and wait until healthy
 down:
 	docker compose down
 
-setup:              ## Indexes + name embeddings for entity linking (~15 min)
+setup:              ## Indexes + SapBERT name embeddings for entity linking (~5 min)
 	cd backend && uv run python -m app.graph.setup
 
 api:                ## FastAPI on :8000
@@ -35,5 +35,5 @@ test:
 lint:
 	uv run ruff check backend eval
 
-eval:               ## Run the evaluation suite (see eval/README)
+eval:               ## Run the evaluation (see docs/flow.md, section 14)
 	uv run python eval/run_eval.py
