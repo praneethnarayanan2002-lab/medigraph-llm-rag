@@ -1,38 +1,69 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DataSet } from 'vis-data/peer'
 import { Network } from 'vis-network/peer'
 import 'vis-network/styles/vis-network.css'
 import type { Subgraph } from './api'
 
-const LABEL_COLORS: Record<string, string> = {
-  Disease: '#e5484d',
-  Drug: '#3e63dd',
-  Gene: '#30a46c',
-  Phenotype: '#f76b15',
-  Exposure: '#8e4ec6',
-  Anatomy: '#12a594',
-  Pathway: '#d6409f',
-  BiologicalProcess: '#978365',
-  MolecularFunction: '#978365',
-  CellularComponent: '#978365',
+// Muted colours that stay distinct in lightness as well as hue, one set per theme.
+const PALETTE = {
+  light: {
+    Disease: '#0f766e',
+    Drug: '#3b5b92',
+    Gene: '#7a5aa6',
+    Phenotype: '#a8601b',
+    Exposure: '#9a3b5c',
+    Anatomy: '#4d7c0f',
+    Pathway: '#64748b',
+    other: '#94a3b8',
+    text: '#1a2530',
+    edge: '#cbd5e1',
+  },
+  dark: {
+    Disease: '#2dd4bf',
+    Drug: '#8fb3e8',
+    Gene: '#c4b2e8',
+    Phenotype: '#f0b46b',
+    Exposure: '#e79ab5',
+    Anatomy: '#a3c76d',
+    Pathway: '#9ca3af',
+    other: '#64748b',
+    text: '#e6edf3',
+    edge: '#2f3e55',
+  },
 }
+
+type Palette = (typeof PALETTE)['light']
+
+function useDark(): boolean {
+  const query = '(prefers-color-scheme: dark)'
+  const [dark, setDark] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const onChange = () => setDark(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return dark
+}
+
+const colorFor = (p: Palette, label: string) => (p as Record<string, string>)[label] ?? p.other
 
 export function GraphView({ graph }: { graph: Subgraph }) {
   const ref = useRef<HTMLDivElement>(null)
+  const dark = useDark()
+  const palette = dark ? PALETTE.dark : PALETTE.light
 
   useEffect(() => {
     if (!ref.current || !graph.nodes.length) return
-    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const text = dark ? '#e8e8ec' : '#1c2024'
     const nodes = new DataSet(
       graph.nodes.map((n) => ({
         id: n.id,
         label: n.name.length > 28 ? n.name.slice(0, 26) + '…' : n.name,
         title: `${n.label}: ${n.name}`,
-        color: LABEL_COLORS[n.label] ?? '#8b8d98',
-        size: n.seed ? 22 : 12,
-        borderWidth: n.seed ? 3 : 1,
-        font: { color: text, size: n.seed ? 15 : 12 },
+        color: { background: colorFor(palette, n.label), border: colorFor(palette, n.label) },
+        size: n.seed ? 16 : 8,
+        borderWidth: 0,
+        font: { color: palette.text, size: n.seed ? 14 : 12, face: 'Inter, system-ui, sans-serif' },
       })),
     )
     const edges = new DataSet(
@@ -41,8 +72,8 @@ export function GraphView({ graph }: { graph: Subgraph }) {
         from: e.source,
         to: e.target,
         title: e.type,
-        arrows: 'to',
-        color: { color: dark ? '#5a5d66' : '#c1c3cb' },
+        arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+        color: { color: palette.edge, highlight: palette.text, hover: palette.text },
       })),
     )
     const network = new Network(
@@ -56,17 +87,17 @@ export function GraphView({ graph }: { graph: Subgraph }) {
       },
     )
     return () => network.destroy()
-  }, [graph])
+  }, [graph, palette])
 
-  if (!graph.nodes.length) return <p className="muted">No graph to show for this answer.</p>
+  if (!graph.nodes.length) return <p className="panel-empty">No graph to show for this answer.</p>
   const labels = [...new Set(graph.nodes.map((n) => n.label))]
   return (
     <div className="graph-wrap">
-      <div ref={ref} className="graph" />
+      <div ref={ref} className="graph" role="img" aria-label={`Graph of ${graph.nodes.length} entities and their relationships`} />
       <div className="legend">
         {labels.map((l) => (
           <span key={l}>
-            <i style={{ background: LABEL_COLORS[l] ?? '#8b8d98' }} />
+            <i style={{ background: colorFor(palette, l) }} />
             {l}
           </span>
         ))}

@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { streamChat, type Step, type Subgraph, type Turn } from './api'
 import { GraphView } from './GraphView'
+import {
+  ArrowUp,
+  ArrowUpRight,
+  CircleAlert,
+  CircleCheck,
+  Close,
+  Copy,
+  Info,
+  NewChat,
+  ShieldCheck,
+} from './icons'
 
 type Evidence = {
   steps: Step[]
@@ -14,22 +25,41 @@ type Evidence = {
 }
 
 type Message = Turn & { evidence?: Evidence; error?: string; pending?: boolean }
+type Tab = 'steps' | 'query' | 'graph' | 'rows'
+type Health = { state: 'checking' | 'live' | 'down'; nodes?: number }
 
 const STEP_NAMES: Record<string, string> = {
   contextualize: 'Rewrite follow-up',
   understand: 'Find entities',
-  generate_cypher: 'Write Cypher',
-  validate: 'Validate query',
-  execute: 'Run on Neo4j',
-  fallback: 'Fallback: neighbourhood lookup',
+  generate_cypher: 'Write query',
+  validate: 'Check query',
+  execute: 'Run on the graph',
+  fallback: 'Look up related facts',
 }
 
-const STATUS_TEXT: Record<string, string> = {
-  answered: 'Grounded in graph query',
-  fallback: 'Exact query found nothing · neighbourhood used',
-  no_answer: 'Not found in graph',
-  out_of_scope: 'Out of scope',
+const PENDING_TEXT: Record<string, string> = {
+  contextualize: 'Finding the entities in your question',
+  understand: 'Writing a query',
+  generate_cypher: 'Checking the query',
+  validate: 'Running it on the graph',
+  execute: 'Writing the answer',
+  fallback: 'Writing the answer',
 }
+
+function pendingText(steps: Step[]): string {
+  const last = steps[steps.length - 1]
+  if (!last) return 'Reading your question'
+  const failed = last.ok === false || ((last.errors as string[] | undefined)?.length ?? 0) > 0
+  if (failed && (last.step === 'validate' || last.step === 'execute')) return 'Fixing the query'
+  return PENDING_TEXT[last.step] ?? 'Working'
+}
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'steps', label: 'Steps' },
+  { id: 'query', label: 'Query' },
+  { id: 'graph', label: 'Graph' },
+  { id: 'rows', label: 'Rows' },
+]
 
 const emptyEvidence = (): Evidence => ({ steps: [], cypher: '', rows: [], subgraph: { nodes: [], edges: [] } })
 
@@ -38,8 +68,10 @@ export default function App() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [selected, setSelected] = useState<number | null>(null)
-  const [tab, setTab] = useState<'steps' | 'cypher' | 'graph' | 'rows'>('steps')
+  const [tab, setTab] = useState<Tab>('steps')
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [examples, setExamples] = useState<string[]>([])
+  const [health, setHealth] = useState<Health>({ state: 'checking' })
   const bottom = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -47,6 +79,10 @@ export default function App() {
       .then((r) => r.json())
       .then(setExamples)
       .catch(() => setExamples([]))
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((h) => setHealth(h.neo4j ? { state: 'live', nodes: h.graph?.nodes } : { state: 'down' }))
+      .catch(() => setHealth({ state: 'down' }))
   }, [])
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
@@ -87,7 +123,6 @@ export default function App() {
         onFinal: (final) => {
           update((msg) => ({ ...msg, content: final.answer, pending: false }))
           updateEvidence((e) => ({ ...e, subgraph: final.subgraph, status: final.status, ms: final.ms }))
-          if (final.subgraph.nodes.length) setTab('graph')
         },
         onError: (message) => update((msg) => ({ ...msg, pending: false, error: message })),
       })
@@ -99,105 +134,174 @@ export default function App() {
     }
   }
 
+  const showEvidence = (i: number) => {
+    setSelected(i)
+    setTab('steps')
+    setSheetOpen(true)
+  }
+
+  const newChat = () => {
+    setMessages([])
+    setSelected(null)
+    setSheetOpen(false)
+  }
+
   const evidence = selected !== null ? messages[selected]?.evidence : undefined
 
   return (
     <div className="app">
-      <header>
-        <div className="brand">
-          <span className="logo">⬡</span>
-          <div>
-            <h1>MediGraph</h1>
-            <p>Medical Q&amp;A grounded in a knowledge graph · Qwen3.5-9B (local) + Neo4j PrimeKG</p>
+      <div className="topbar">
+        <header className="topbar-row">
+          <ShieldCheck style={{ color: 'var(--accent-text)' }} />
+          <div className="brand">
+            <span className="brand-name">MediGraph</span>
+            <span className="status">
+              <span className={`dot ${health.state === 'live' ? 'live' : health.state === 'down' ? 'down' : ''}`} />
+              {health.state === 'live' && health.nodes ? (
+                <>
+                  Connected to PrimeKG<span className="hide-narrow"> · {health.nodes.toLocaleString()} entities</span>
+                </>
+              ) : health.state === 'live'
+                ? 'Connected to PrimeKG'
+                : health.state === 'down'
+                  ? 'Knowledge graph offline'
+                  : 'Connecting…'}
+            </span>
           </div>
+          {messages.length > 0 && (
+            <button type="button" className="pill-button" onClick={newChat} disabled={busy}>
+              <NewChat />
+              <span className="hide-narrow">New chat</span>
+              <span className="sr-only show-narrow">New chat</span>
+            </button>
+          )}
+        </header>
+        <div className="notice">
+          <Info />
+          <p>
+            Answers come only from the PrimeKG knowledge graph and are for general information, not
+            medical advice. In an emergency, call <strong className="urgent">911</strong>.
+          </p>
         </div>
-        {messages.length > 0 && (
-          <button className="ghost" onClick={() => (setMessages([]), setSelected(null))} disabled={busy}>
-            New chat
-          </button>
-        )}
-      </header>
+      </div>
 
       <main>
-        <section className="chat">
-          <div className="messages">
-            {messages.length === 0 && (
-              <div className="empty">
-                <h2>Ask about diseases, drugs, genes and symptoms</h2>
-                <p className="muted">
-                  Every answer comes from a Cypher query over 129k nodes and 4M relationships. Follow-up
-                  questions work too.
-                </p>
-                <div className="chips">
-                  {examples.map((q) => (
-                    <button key={q} className="chip" onClick={() => ask(q)}>
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                className={`msg ${m.role} ${selected === i ? 'selected' : ''}`}
-                onClick={() => m.evidence && setSelected(i)}
-              >
-                {m.role === 'assistant' && m.evidence?.status && (
-                  <span className={`badge ${m.evidence.status}`}>
-                    {STATUS_TEXT[m.evidence.status] ?? m.evidence.status}
-                    {m.evidence.ms ? ` · ${(m.evidence.ms / 1000).toFixed(1)}s` : ''}
-                  </span>
-                )}
-                {m.error ? (
-                  <p className="error">{m.error}</p>
-                ) : m.pending && !m.content ? (
-                  <p className="muted thinking">
-                    {STEP_NAMES[m.evidence?.steps[m.evidence.steps.length - 1]?.step ?? ''] ?? 'Starting'}…
-                  </p>
+        <section className="chat" aria-label="Conversation">
+          <div className="thread-scroll">
+            <div className="thread">
+              {messages.length === 0 && (
+                <>
+                  <div className="bubble assistant">
+                    Hello. Ask me about diseases, drugs, genes and symptoms. I answer only from a curated
+                    medical knowledge graph, and you can see the evidence behind every answer.
+                  </div>
+                  <div className="chips">
+                    {examples.map((q) => (
+                      <button key={q} type="button" className="chip" onClick={() => ask(q)}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {messages.map((m, i) =>
+                m.role === 'user' ? (
+                  <div key={i} className="bubble user">
+                    {m.content}
+                  </div>
                 ) : (
-                  <Markdown text={m.content} />
-                )}
-              </div>
-            ))}
-            <div ref={bottom} />
+                  <div key={i} className={`answer${selected === i ? ' selected' : ''}`}>
+                    <div className="bubble assistant">
+                      {m.error ? (
+                        <p className="error-text">{m.error}</p>
+                      ) : m.pending && !m.content ? (
+                        <p className="thinking">
+                          <span className="dot live" />
+                          {pendingText(m.evidence?.steps ?? [])}…
+                        </p>
+                      ) : (
+                        <Markdown text={m.content} />
+                      )}
+                    </div>
+                    {!m.pending && !m.error && m.evidence && (
+                      <div className="meta">
+                        <AnswerStatus evidence={m.evidence} />
+                        {m.evidence.steps.length > 0 && (
+                          <button type="button" className="source" onClick={() => showEvidence(i)}>
+                            <span>
+                              Source: PrimeKG query
+                              <ArrowUpRight />
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ),
+              )}
+              <div ref={bottom} />
+            </div>
           </div>
-          <form
-            className="composer"
-            onSubmit={(e) => {
-              e.preventDefault()
-              ask(input)
-            }}
-          >
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={messages.length ? 'Ask a follow-up…' : 'e.g. What drugs treat a heart attack?'}
-              disabled={busy}
-              aria-label="Question"
-            />
-            <button type="submit" disabled={busy || !input.trim()}>
-              {busy ? 'Thinking…' : 'Ask'}
-            </button>
-          </form>
-          <p className="disclaimer">Research demo, not medical advice. Answers only reflect the PrimeKG dataset.</p>
+
+          <div className="composer-wrap">
+            <form
+              className="composer"
+              onSubmit={(e) => {
+                e.preventDefault()
+                ask(input)
+              }}
+            >
+              <label htmlFor="question" className="sr-only">
+                Question
+              </label>
+              <input
+                id="question"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={messages.length ? 'Ask a follow-up…' : 'Ask about a disease, drug, gene or symptom…'}
+                disabled={busy}
+                autoComplete="off"
+              />
+              <button type="submit" className="send" aria-label="Send question" disabled={busy || !input.trim()}>
+                <ArrowUp />
+              </button>
+            </form>
+          </div>
         </section>
 
-        <aside className="evidence">
-          <nav>
-            {(['steps', 'cypher', 'graph', 'rows'] as const).map((t) => (
-              <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-                {{ steps: 'Pipeline', cypher: 'Cypher', graph: 'Graph', rows: 'Rows' }[t]}
+        <aside className={`evidence${sheetOpen ? ' open' : ''}`} aria-label="Evidence">
+          <div className="evidence-head">
+            <h2>How this answer was found</h2>
+            <button type="button" className="icon-button" aria-label="Close evidence" onClick={() => setSheetOpen(false)}>
+              <Close />
+            </button>
+          </div>
+          <div className="tabs" role="tablist" aria-label="Evidence views">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                id={`tab-${t.id}`}
+                aria-selected={tab === t.id}
+                aria-controls="evidence-panel"
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
               </button>
             ))}
-          </nav>
-          <div className="panel">
+          </div>
+          <div className="panel" id="evidence-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
             {!evidence ? (
-              <p className="muted">Ask a question to see how the answer was retrieved.</p>
+              <p className="panel-empty">
+                Ask a question to see each step: the entities found, the query written and checked, and the
+                facts it returned.
+              </p>
             ) : tab === 'steps' ? (
               <Steps steps={evidence.steps} />
-            ) : tab === 'cypher' ? (
-              evidence.cypher ? <pre className="code">{evidence.cypher}</pre> : <p className="muted">No query.</p>
+            ) : tab === 'query' ? (
+              <Query cypher={evidence.cypher} />
             ) : tab === 'graph' ? (
               <GraphView graph={evidence.subgraph} />
             ) : (
@@ -210,49 +314,87 @@ export default function App() {
   )
 }
 
+function AnswerStatus({ evidence }: { evidence: Evidence }) {
+  const secs = evidence.ms ? ` · ${(evidence.ms / 1000).toFixed(1)} s` : ''
+  const facts = evidence.rows.length
+  if (evidence.status === 'answered')
+    return (
+      <span className="meta-status ok">
+        <CircleCheck size={14} />
+        Grounded in {facts} {facts === 1 ? 'fact' : 'facts'}
+        {secs}
+      </span>
+    )
+  const text: Record<string, string> = {
+    fallback: 'Exact answer not in the graph · showing related facts',
+    no_answer: 'Not found in the knowledge graph',
+    out_of_scope: 'Outside what the knowledge graph covers',
+  }
+  return (
+    <span className="meta-status">
+      <Info size={14} />
+      {text[evidence.status ?? ''] ?? 'Answered'}
+      {secs}
+    </span>
+  )
+}
+
 function Steps({ steps }: { steps: Step[] }) {
-  if (!steps.length) return <p className="muted">Waiting…</p>
+  if (!steps.length) return <p className="panel-empty">Working…</p>
   return (
     <ol className="steps">
-      {steps.map((s, i) => (
-        <li key={i} className={s.ok === false || (s.errors as string[] | undefined)?.length ? 'bad' : ''}>
-          <div className="step-head">
-            <strong>
-              {STEP_NAMES[s.step] ?? s.step}
-              {s.step === 'generate_cypher' && Number(s.attempt) > 1 ? ` (retry ${Number(s.attempt) - 1})` : ''}
-            </strong>
-            <span className="muted">{s.ms} ms</span>
-          </div>
-          <StepDetail step={s} />
-        </li>
-      ))}
+      {steps.map((s, i) => {
+        const bad = s.ok === false || ((s.errors as string[] | undefined)?.length ?? 0) > 0
+        return (
+          <li key={i} className={bad ? 'bad' : ''}>
+            <span className="step-icon">{bad ? <CircleAlert /> : <CircleCheck />}</span>
+            <div>
+              <div className="step-head">
+                <strong>
+                  {STEP_NAMES[s.step] ?? s.step}
+                  {s.step === 'generate_cypher' && Number(s.attempt) > 1 ? ` · attempt ${Number(s.attempt)}` : ''}
+                </strong>
+                <span className="step-time">{(s.ms / 1000).toFixed(1)} s</span>
+              </div>
+              <div className="step-body">
+                <StepDetail step={s} />
+              </div>
+            </div>
+          </li>
+        )
+      })}
     </ol>
   )
 }
 
 function StepDetail({ step }: { step: Step }) {
-  if (step.step === 'contextualize' && step.rewritten) return <p>→ {String(step.question)}</p>
+  if (step.step === 'contextualize')
+    return <p>{step.rewritten ? `Rewritten as: ${String(step.question)}` : 'No rewrite needed'}</p>
   if (step.step === 'understand') {
-    const ents = (step.entities as { mention: string; name: string; label: string; method: string; score: number }[]) ?? []
+    const ents = (step.entities as { mention: string; name: string; label: string }[]) ?? []
+    if (step.in_scope === false) return <p>Judged outside what the graph covers</p>
+    if (!ents.length) return <p>No entities matched; the query relies on the schema</p>
     return (
-      <ul className="ents">
+      <ul>
         {ents.map((e, i) => (
           <li key={i}>
-            “{e.mention}” → <b>{e.name}</b> <span className="tag">{e.label}</span>{' '}
-            <span className="muted">
-              {e.method} {e.score.toFixed(2)}
-            </span>
+            {e.mention === e.name ? (
+              <b>{e.name}</b>
+            ) : (
+              <>
+                {e.mention} → <b>{e.name}</b>
+              </>
+            )}
+            <span className="tag">{e.label}</span>
           </li>
         ))}
-        {step.in_scope === false && <li className="error">Judged out of scope</li>}
-        {!ents.length && step.in_scope !== false && <li className="muted">No entities linked</li>}
       </ul>
     )
   }
-  if (step.step === 'generate_cypher') return <pre className="code small">{String(step.cypher)}</pre>
+  if (step.step === 'generate_cypher') return <pre className="code">{String(step.cypher)}</pre>
   if (step.step === 'validate')
     return step.ok ? (
-      <p className="ok">Read-only, schema-valid, entity names exist</p>
+      <p>Read-only, matches the schema, every name exists</p>
     ) : (
       <ul className="errors">{(step.errors as string[]).map((e, i) => <li key={i}>{e}</li>)}</ul>
     )
@@ -261,21 +403,47 @@ function StepDetail({ step }: { step: Step }) {
       <ul className="errors">{(step.errors as string[]).map((e, i) => <li key={i}>{e}</li>)}</ul>
     ) : (
       <p>
-        {String(step.n_rows)} rows{step.truncated ? ' (truncated)' : ''}
+        {String(step.n_rows)} {Number(step.n_rows) === 1 ? 'row' : 'rows'}
+        {step.truncated ? ', first 50 shown' : ''}
       </p>
     )
-  if (step.step === 'fallback') return <p>{String(step.n_rows)} related facts</p>
+  if (step.step === 'fallback') return <p>{String(step.n_rows)} related facts found</p>
   return null
 }
 
+function Query({ cypher }: { cypher: string }) {
+  const [copied, setCopied] = useState(false)
+  if (!cypher) return <p className="panel-empty">No query was written for this question.</p>
+  const copy = () => {
+    navigator.clipboard
+      ?.writeText(cypher)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1600)
+      })
+      .catch(() => setCopied(false))
+  }
+  return (
+    <>
+      <pre className="code">{cypher}</pre>
+      <div className="code-actions">
+        <button type="button" className="pill-button" onClick={copy}>
+          <Copy />
+          {copied ? 'Copied' : 'Copy query'}
+        </button>
+      </div>
+    </>
+  )
+}
+
 function Rows({ rows, truncated, fallback }: { rows: Record<string, unknown>[]; truncated?: boolean; fallback?: boolean }) {
-  if (!rows.length) return <p className="muted">No rows.</p>
+  if (!rows.length) return <p className="panel-empty">The query returned no rows.</p>
   const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))]
   const show = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v))
   return (
     <>
       {(truncated || fallback) && (
-        <p className="muted">{fallback ? 'Neighbourhood facts (fallback).' : 'First 50 rows shown.'}</p>
+        <p className="note">{fallback ? 'Related facts about the entities in your question.' : 'First 50 rows shown.'}</p>
       )}
       <div className="table-wrap">
         <table>
