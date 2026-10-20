@@ -15,8 +15,8 @@ const PALETTE = {
     Anatomy: '#4d7c0f',
     Pathway: '#64748b',
     other: '#94a3b8',
-    text: '#1a2530',
-    edge: '#cbd5e1',
+    text: '#0c1f1a',
+    edge: '#9fbcb2',
   },
   dark: {
     Disease: '#2dd4bf',

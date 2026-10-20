@@ -152,7 +152,9 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <header className="topbar-row">
-          <ShieldCheck style={{ color: 'var(--accent-text)' }} />
+          <span className="logo-badge">
+            <ShieldCheck size={20} />
+          </span>
           <div className="brand">
             <span className="brand-name">MediGraph</span>
             <span className="status">
@@ -231,7 +233,9 @@ export default function App() {
                           <button type="button" className="source" onClick={() => showEvidence(i)}>
                             <span>
                               Source: PrimeKG query
-                              <ArrowUpRight />
+                              <i className="arrow-chip">
+                                <ArrowUpRight />
+                              </i>
                             </span>
                           </button>
                         )}
@@ -347,7 +351,7 @@ function Steps({ steps }: { steps: Step[] }) {
         const bad = s.ok === false || ((s.errors as string[] | undefined)?.length ?? 0) > 0
         return (
           <li key={i} className={bad ? 'bad' : ''}>
-            <span className="step-icon">{bad ? <CircleAlert /> : <CircleCheck />}</span>
+            <span className="step-icon">{bad ? <CircleAlert size={14} /> : <CircleCheck size={14} />}</span>
             <div>
               <div className="step-head">
                 <strong>
