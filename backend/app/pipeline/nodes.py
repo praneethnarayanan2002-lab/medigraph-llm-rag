@@ -88,15 +88,20 @@ def understand(state: GraphRAGState, config: RunnableConfig) -> dict:
         # The user's own wording wins when it names a node exactly: the model's "normalisation"
         # can otherwise swap a precise term for a broader or different one
         # ("Stanolone acetate" -> "Stanozolol", "Duane syndrome type 1" -> "Duane retraction syndrome").
-        own = link_entity(db, m.mention, label)
-        if own and own[0].method == "exact":
-            candidates = own
-        else:
-            candidates = own
-            if m.mention.lower() != m.canonical.lower():
-                candidates = own + link_entity(db, m.canonical, label)
-        if not candidates and label:  # the model may have guessed the wrong type
-            candidates = link_entity(db, m.canonical, None)
+        try:
+            own = link_entity(db, m.mention, label)
+            if own and own[0].method == "exact":
+                candidates = own
+            else:
+                candidates = own
+                if m.mention.lower() != m.canonical.lower():
+                    candidates = own + link_entity(db, m.canonical, label)
+            if not candidates and label:  # the model may have guessed the wrong type
+                candidates = link_entity(db, m.canonical, None)
+        except neo4j.exceptions.Neo4jError:
+            # A slow or failed lookup (e.g. a timeout on an overloaded machine) skips this entity
+            # instead of failing the whole answer; the query writer still has the schema.
+            continue
         if not candidates:
             continue
         # Exact matches first, then by score.
@@ -333,7 +338,15 @@ def _strings(value: Any) -> list[str]:
 
 
 def build_subgraph(state: GraphRAGState, max_nodes: int = 60) -> dict[str, list[dict[str, Any]]]:
-    """Nodes mentioned in the answer's evidence and the edges between them, for visualisation."""
+    """Nodes mentioned in the answer's evidence and the edges between them, for visualisation.
+    The picture is optional: if the lookup fails, the answer is still returned without it."""
+    try:
+        return _subgraph(state, max_nodes)
+    except neo4j.exceptions.Neo4jError:
+        return {"nodes": [], "edges": []}
+
+
+def _subgraph(state: GraphRAGState, max_nodes: int) -> dict[str, list[dict[str, Any]]]:
     seeds = [e["name"] for e in state.get("entities", [])]
     names = list(dict.fromkeys(seeds + [s for row in state.get("rows", []) for s in _strings(row)]))
     names = names[: max_nodes * 2]
