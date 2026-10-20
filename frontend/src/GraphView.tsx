@@ -15,7 +15,7 @@ const PALETTE = {
     Anatomy: '#4d7c0f',
     Pathway: '#64748b',
     other: '#94a3b8',
-    text: '#0c1f1a',
+    text: '#111b21',
     edge: '#9fbcb2',
   },
   dark: {
@@ -63,7 +63,7 @@ export function GraphView({ graph }: { graph: Subgraph }) {
         color: { background: colorFor(palette, n.label), border: colorFor(palette, n.label) },
         size: n.seed ? 16 : 8,
         borderWidth: 0,
-        font: { color: palette.text, size: n.seed ? 14 : 12, face: 'Inter, system-ui, sans-serif' },
+        font: { color: palette.text, size: n.seed ? 14 : 12, face: '-apple-system, "Segoe UI", system-ui, sans-serif' },
       })),
     )
     const edges = new DataSet(

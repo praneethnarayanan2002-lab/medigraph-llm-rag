@@ -1,23 +1,24 @@
-/* Green-tinted glass: frosted translucent surfaces over a soft mint ground, with deep forest-green
-   "ink" for highlights (icons, send, active tab, your messages) so contrast stays high. */
+/* Frosted glass over a near-white ground with a faint green wash. Chat bubbles are solid so text
+   stays crisp; deep forest-green "ink" marks the highlights (icons, send, active tab, your messages). */
 :root {
-  --ground: #dcefe5;
-  --glow-1: #86d3b0;
-  --glow-2: #b6e5cf;
-  --glow-3: #7dcab5;
-  --glow-4: #c9ecda;
-  --glass: rgba(255, 255, 255, 0.5);
-  --glass-strong: rgba(255, 255, 255, 0.68);
+  --ground: #f1f5f3;
+  --glow-1: #d3ebdf;
+  --glow-2: #e2f1ea;
+  --glow-3: #d9ede4;
+  --glow-4: #e6f2ec;
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-strong: rgba(255, 255, 255, 0.78);
+  --bubble: #ffffff;
   --glass-input: rgba(255, 255, 255, 0.9);
   --glass-highlight: rgba(255, 255, 255, 0.9);
-  --edge: rgba(13, 61, 50, 0.12);
-  --hairline: rgba(13, 61, 50, 0.08);
-  --shadow: 0 12px 32px -14px rgba(13, 61, 50, 0.22), 0 2px 6px -2px rgba(13, 61, 50, 0.08);
+  --edge: rgba(17, 27, 33, 0.09);
+  --hairline: rgba(17, 27, 33, 0.07);
+  --shadow: 0 10px 28px -16px rgba(17, 27, 33, 0.18), 0 1px 3px rgba(17, 27, 33, 0.06);
   --blur: blur(18px) saturate(160%);
-  --text: #0c1f1a;
-  --text-2: #1f3d35;
-  --muted: #3b5a51;
-  --placeholder: #587369;
+  --text: #0b0d0e;
+  --text-2: #1d2327;
+  --muted: #4a565d;
+  --placeholder: #6b777e;
   --ink: #0f3d33;
   --ink-hover: #0a2c25;
   --on-ink: #a7f3d0;
@@ -29,7 +30,7 @@
   --code-bg: #0f2a24;
   --code-text: #d1fae5;
   --tag-bg: rgba(15, 61, 51, 0.07);
-  --font: Inter, -apple-system, 'SF Pro Text', system-ui, sans-serif;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Inter, Roboto, system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   color-scheme: light;
 }
@@ -43,6 +44,7 @@
     --glow-4: #102a2c;
     --glass: rgba(27, 37, 54, 0.55);
     --glass-strong: rgba(22, 31, 46, 0.78);
+    --bubble: rgba(30, 41, 57, 0.94);
     --glass-input: rgba(27, 37, 54, 0.9);
     --glass-highlight: rgba(255, 255, 255, 0.07);
     --edge: rgba(255, 255, 255, 0.08);
@@ -65,6 +67,7 @@
     --tag-bg: rgba(94, 234, 212, 0.1);
     color-scheme: dark;
   }
+  body { -webkit-font-smoothing: antialiased; }
 }
 
 * { box-sizing: border-box; }
@@ -73,7 +76,6 @@ body {
   margin: 0;
   color: var(--text);
   font: 15px/1.6 var(--font);
-  -webkit-font-smoothing: antialiased;
   background:
     radial-gradient(640px 480px at 14% 26%, var(--glow-1) 0%, transparent 70%),
     radial-gradient(620px 520px at 88% 62%, var(--glow-3) 0%, transparent 70%),
@@ -177,18 +179,16 @@ main {
 .bubble.assistant {
   align-self: flex-start;
   color: var(--text);
-  background: var(--glass);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
+  background: var(--bubble);
   border: 1px solid var(--edge);
-  box-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow);
+  box-shadow: var(--shadow);
 }
 .bubble.user {
   align-self: flex-end;
   max-width: 80%;
   padding: 12px 16px;
   background: var(--ink);
-  color: var(--on-ink-strong);
+  color: #ffffff;
   border-radius: 20px 20px 6px 20px;
   box-shadow: 0 10px 24px -14px rgba(15, 61, 51, 0.8);
 }
