@@ -154,7 +154,7 @@ class GraphDB:                                   # backend/app/graph/db.py
         self.driver = neo4j.GraphDatabase.driver(uri, auth=(user, password))
     def read(self, cypher, params=None): ...     # a method
 
-db = GraphDB("bolt://localhost:7687", "neo4j", "***REMOVED***")   # create an object
+db = GraphDB("bolt://localhost:7687", "neo4j", "your-password")   # create an object
 db.read("MATCH (n) RETURN count(n)")                               # call a method
 ```
 

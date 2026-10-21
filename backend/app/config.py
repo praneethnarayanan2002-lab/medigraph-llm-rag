@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
-    neo4j_password: str = "***REMOVED***"
+    neo4j_password: str  # no default on purpose: set NEO4J_PASSWORD in .env
 
     # Pipeline limits
     max_cypher_attempts: int = 3

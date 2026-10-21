@@ -738,9 +738,9 @@ the software needs. Instead of installing Neo4j (and Java) on your Mac, you run 
 services:
   neo4j:
     image: neo4j:5.26-community
-    ports: ["7474:7474", "7687:7687"]        # browser UI, and the Bolt protocol for the Python driver
+    ports: ["127.0.0.1:7474:7474", "127.0.0.1:7687:7687"]   # browser UI and Bolt, this machine only
     environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-***REMOVED***}
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}   # no default password in the repo
       NEO4J_server_memory_heap_max__size: 1G   # memory for query processing
       NEO4J_server_memory_pagecache_size: 1G   # memory for caching the data files
       NEO4J_db_transaction_timeout: 15s        # kill any query running longer than this

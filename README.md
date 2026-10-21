@@ -169,6 +169,7 @@ more than 50 items. Those are handled in `eval/metrics.py` and documented at the
 You need Docker, [Ollama](https://ollama.com), [uv](https://docs.astral.sh/uv/) and Node.
 
 ```bash
+cp .env.example .env   # then set NEO4J_PASSWORD to a password of your choice
 ollama pull qwen3.5:9b
 ollama pull nomic-embed-text
 make install        # Python env + frontend deps
@@ -189,7 +190,7 @@ uv run python eval/run_eval.py --system closed_book
 uv run python eval/metrics.py
 ```
 
-Copy `.env.example` to `.env` to change models or add an OpenAI key.
+`.env` is also where you change models or add an OpenAI key. It's git-ignored, so the password never ends up in the repo.
 
 ## More docs
 
@@ -213,3 +214,7 @@ frontend/               React UI
 
 PrimeKG: Chandak, Huang & Zitnik, *Building a knowledge graph to enable precision medicine*,
 Scientific Data (2023), CC BY 4.0.
+
+## License
+
+Code is MIT (see [LICENSE](LICENSE)). The PrimeKG data is not included in this repo; it is downloaded by `make data` and stays under its own CC BY 4.0 licence.
